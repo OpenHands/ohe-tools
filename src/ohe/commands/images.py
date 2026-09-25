@@ -102,15 +102,20 @@ def get_config(ctx: click.Context, name: str, as_json: bool) -> None:
 @images.command("save")
 @click.argument("name")
 @click.option(
+    "--from",
+    "from_config",
+    metavar="SOURCE_NAME",
+    help=(
+        "Derive the body from an existing configuration fetched from the API "
+        "(e.g. --from v1_current). Its name and source are stripped."
+    ),
+)
+@click.option(
     "--file",
     "-f",
     "config_file",
-    required=True,
     type=click.File("r"),
-    help=(
-        "JSON configuration body, or '-' for stdin. Derive it from the "
-        "installer default (see 'ohe images save --help')."
-    ),
+    help="JSON configuration body, or '-' for stdin. Alternative to --from.",
 )
 @click.option("--image", help="Override the image reference in the config body.")
 @click.option(
@@ -121,6 +126,7 @@ def get_config(ctx: click.Context, name: str, as_json: bool) -> None:
 def save_config(
     ctx: click.Context,
     name: str,
+    from_config: str | None,
     config_file,
     image: str | None,
     count: int | None,
@@ -128,29 +134,46 @@ def save_config(
 ) -> None:
     """Create or update the sandbox image configuration NAME (admin).
 
-    The body must contain install-specific values (working_dir, command,
-    environment) that sandboxes need to boot. Do not write it from scratch —
-    export the installer default and change only the image and pool size:
+    The body must carry install-specific values (working_dir, command,
+    environment) that sandboxes need to boot, so derive it from an existing
+    configuration rather than writing it from scratch. The usual flow is to
+    base a new image on the installer default, changing only image and count:
 
     \b
-      kubectl -n openhands get configmap warm-runtimes-config \\
-        -o jsonpath='{.data.warm-runtimes\\.json}' \\
-        | jq '.configs[] | select(.name == "v1_current") | del(.name)' \\
-        > default-config.json
-
-      ohe images save php-web -f default-config.json \\
+      ohe images save php-web --from v1_current \\
         --image ghcr.io/your-org/openhands-php:8.4-v1 --count 1
-    """
-    try:
-        body = json.load(config_file)
-    except json.JSONDecodeError as exc:
-        raise click.ClickException(f"Invalid JSON in configuration file: {exc}") from exc
-    if not isinstance(body, dict):
-        raise click.ClickException("Configuration body must be a JSON object.")
 
-    # A 'source' field appears in list output but must not be saved.
+    Or supply an edited body from a file (or '-' for stdin):
+
+    \b
+      ohe images get v1_current --json | jq 'del(.name, .source) | .image=...' \\
+        | ohe images save php-web -f -
+    """
+    if bool(from_config) == bool(config_file):
+        raise click.UsageError("Provide exactly one of --from or --file.")
+
+    client = _client(ctx)
+
+    if from_config:
+        base = _run(lambda: client.get_config(from_config))
+        if base is None:
+            raise click.ClickException(
+                f'No source configuration named "{from_config}" to derive from.'
+            )
+        body = dict(base)
+    else:
+        try:
+            body = json.load(config_file)
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(
+                f"Invalid JSON in configuration file: {exc}"
+            ) from exc
+        if not isinstance(body, dict):
+            raise click.ClickException("Configuration body must be a JSON object.")
+
+    # 'source' appears in list/get output and 'name' comes from the URL path;
+    # neither may be sent in a saved body.
     body.pop("source", None)
-    # The name is taken from the URL path, not the body.
     body.pop("name", None)
     if image is not None:
         body["image"] = image
@@ -162,10 +185,9 @@ def save_config(
         raise click.ClickException(
             "Configuration is missing required field(s): "
             + ", ".join(missing)
-            + ". Derive the body from the installer default template."
+            + ". Derive the body from an existing configuration (--from)."
         )
 
-    client = _client(ctx)
     saved = _run(lambda: client.save_config(name, body))
     if as_json:
         _echo_json(saved)

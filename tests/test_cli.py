@@ -69,6 +69,76 @@ def test_save_override_image_and_count(fake_api, tmp_path):
     assert state.configs["php-web"]["count"] == 3
 
 
+def test_save_from_existing_config(fake_api, tmp_path):
+    # Seed an installer-default-like config, then derive a new image from it
+    # entirely through the API (no file), mirroring the docs' v1_current flow.
+    base_url, state = fake_api
+    seed = tmp_path / "v1.json"
+    seed.write_text(json.dumps(CONFIG_BODY))
+    runner = CliRunner()
+    runner.invoke(
+        main, ["images", "save", "v1_current", "-f", str(seed)], env=_env(base_url)
+    )
+
+    result = runner.invoke(
+        main,
+        [
+            "images",
+            "save",
+            "php-web",
+            "--from",
+            "v1_current",
+            "--image",
+            "ghcr.io/your-org/openhands-php:8.4-v1",
+            "--count",
+            "2",
+        ],
+        env=_env(base_url),
+    )
+    assert result.exit_code == 0, result.output
+    derived = state.configs["php-web"]
+    assert derived["image"].endswith("php:8.4-v1")
+    assert derived["count"] == 2
+    # Install-specific values are carried over from the source config.
+    assert derived["environment"] == CONFIG_BODY["environment"]
+    assert derived["working_dir"] == CONFIG_BODY["working_dir"]
+    # The source marker is never sent back in a saved body.
+    assert "source" not in derived or derived["source"] == "db"
+
+
+def test_save_from_missing_source_fails(fake_api):
+    base_url, _ = fake_api
+    result = CliRunner().invoke(
+        main,
+        ["images", "save", "php-web", "--from", "nope", "--image", "x:1"],
+        env=_env(base_url),
+    )
+    assert result.exit_code != 0
+    assert "No source configuration named" in result.output
+
+
+def test_save_requires_from_or_file(fake_api):
+    base_url, _ = fake_api
+    result = CliRunner().invoke(
+        main, ["images", "save", "php-web", "--image", "x:1"], env=_env(base_url)
+    )
+    assert result.exit_code != 0
+    assert "exactly one of --from or --file" in result.output
+
+
+def test_save_rejects_both_from_and_file(fake_api, tmp_path):
+    base_url, _ = fake_api
+    cfg = tmp_path / "php.json"
+    cfg.write_text(json.dumps(CONFIG_BODY))
+    result = CliRunner().invoke(
+        main,
+        ["images", "save", "php-web", "--from", "v1_current", "-f", str(cfg)],
+        env=_env(base_url),
+    )
+    assert result.exit_code != 0
+    assert "exactly one of --from or --file" in result.output
+
+
 def test_save_missing_required_field_fails(fake_api, tmp_path):
     base_url, _ = fake_api
     cfg = tmp_path / "bad.json"

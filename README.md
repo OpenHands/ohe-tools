@@ -30,7 +30,8 @@ export OHE_API_KEY=<runtime-api key>          # for read operations
 export OHE_ADMIN_PASSWORD=<runtime-api admin> # for write operations
 
 ohe images list
-ohe images save php-web -f default-config.json \
+# Derive a new image from the installer default, changing only image + count:
+ohe images save php-web --from v1_current \
   --image ghcr.io/your-org/openhands-php:8.4-v1 --count 1
 ohe images delete php-web
 ```
@@ -40,16 +41,22 @@ ohe images delete php-web
 ```
 ohe [--runtime-api-url URL] [--api-key KEY] [--admin-password PASSWORD] <command>
 
-ohe images list              List effective sandbox image configurations
-ohe images get   <name>      Show one configuration
+ohe images list                        List effective sandbox image configs
+ohe images get   <name>                Show one configuration
+ohe images save  <name> --from <src> [--image REF] [--count N]
+                                       Derive from an existing config and save (admin)
 ohe images save  <name> -f <config.json> [--image REF] [--count N]
-                             Create or update a configuration (admin)
-ohe images delete <name>     Delete a configuration (admin)
+                                       Save from a file / stdin (admin)
+ohe images delete <name>               Delete a configuration (admin)
 ```
 
 `ohe images list`/`get` accept `--json` for raw output; the default is a
-compact table. `save` reads the config body from a file or `-` (stdin) and can
-override `image`/`count` in place, mirroring the `jq` workflow in the docs.
+compact table. `save` builds the body one of two ways — `--from <name>` fetches
+an existing configuration from the API (typically the installer default,
+`v1_current`) and strips its `name`/`source`, or `-f <file>` (`-` for stdin)
+reads an edited body. Either way, `--image`/`--count` override in place. The
+`--from` form collapses the docs' `list | jq | save` template dance into one
+API-only command.
 
 ### Credentials
 
@@ -116,10 +123,9 @@ methods without reworking the core.
 | `count` | no | Warm pods to keep ready |
 | `run_as_user` / `run_as_group` / `fs_group` | no | Copy from the default |
 
-Do not write configurations from scratch. Export the installer's `v1_current`
-entry from the `warm-runtimes-config` ConfigMap and change only the image and
-pool size. `name` and `source` in the body are ignored (the name comes from the
-command argument). See the
+Do not write configurations from scratch. Derive each image from the installer
+default (`v1_current`) with `--from`, changing only the image and pool size —
+`name` and `source` are stripped automatically. See the
 [Configuring Custom Sandbox Images](https://docs.openhands.dev/enterprise) docs
 for the full workflow, upgrade guidance, and troubleshooting.
 
