@@ -28,6 +28,17 @@ def test_list_empty_table(fake_api):
     assert "No warm runtime configurations found." in result.output
 
 
+def test_list_with_admin_password_only(fake_api):
+    # No OHE_API_KEY: the CLI derives one from the admin password.
+    base_url, _ = fake_api
+    env = {
+        "OHE_RUNTIME_API_URL": base_url,
+        "OHE_ADMIN_PASSWORD": "s3cret",
+    }
+    result = CliRunner().invoke(main, ["images", "list"], env=env)
+    assert result.exit_code == 0, result.output
+
+
 def test_save_from_file_then_list(fake_api, tmp_path):
     base_url, _ = fake_api
     cfg = tmp_path / "php.json"

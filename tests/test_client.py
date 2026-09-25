@@ -71,11 +71,23 @@ def test_delete_missing_raises_not_found(fake_api):
         _client(base_url).delete_config("nope")
 
 
-def test_list_requires_api_key(fake_api):
+def test_list_requires_some_credential(fake_api):
     base_url, _ = fake_api
-    client = RuntimeApiClient(base_url, admin_password="s3cret")
+    client = RuntimeApiClient(base_url)  # no api key, no admin password
     with pytest.raises(AuthError):
         client.list_configs()
+
+
+def test_list_derives_api_key_from_admin_password(fake_api):
+    # No explicit API key: the client logs in as admin and pulls a key value
+    # from /api/admin/api-keys, then uses it for the read call.
+    base_url, _ = fake_api
+    client = RuntimeApiClient(
+        base_url, admin_password="s3cret", base_backoff=0.0, sleep=lambda _s: None
+    )
+    client.save_config("php-web", dict(CONFIG_BODY))
+    assert [c["name"] for c in client.list_configs()] == ["php-web"]
+    assert client._resolved_api_key == "test-api-key"
 
 
 def test_wrong_api_key_is_auth_error(fake_api):

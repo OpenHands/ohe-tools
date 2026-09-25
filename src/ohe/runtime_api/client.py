@@ -58,6 +58,7 @@ class RuntimeApiClient:
         self._opener = opener or urllib.request.build_opener()
         self._sleep = sleep
         self._admin_token: str | None = None
+        self._resolved_api_key: str | None = None
 
     # -- low-level request ------------------------------------------------
 
@@ -117,12 +118,43 @@ class RuntimeApiClient:
     # -- auth -------------------------------------------------------------
 
     def _api_key_headers(self) -> dict:
-        if not self.api_key:
-            raise AuthError(
-                "An API key is required for this operation. "
-                "Set --api-key or the OHE_API_KEY environment variable."
+        return {"X-API-Key": self._resolve_api_key()}
+
+    def _resolve_api_key(self) -> str:
+        """Return an API key for read calls.
+
+        Uses an explicitly provided key, otherwise derives one from the admin
+        password via the admin api-keys endpoint. The Default API Key is hidden
+        in the Replicated installer config, so deriving it from the admin
+        password (which the installer *does* expose) keeps read operations
+        working without any cluster access.
+        """
+        if self.api_key:
+            return self.api_key
+        if self._resolved_api_key:
+            return self._resolved_api_key
+        if self.admin_password:
+            keys = self.get_api_keys()
+            key_value = next(
+                (k.get("key_value") for k in keys if k.get("key_value")), None
             )
-        return {"X-API-Key": self.api_key}
+            if not key_value:
+                raise AuthError(
+                    "No API key is available to derive from the admin account."
+                )
+            self._resolved_api_key = key_value
+            return key_value
+        raise AuthError(
+            "No credentials for this operation. Provide --admin-password "
+            "(the Runtime API Admin Password from the installer config), or "
+            "an explicit --api-key."
+        )
+
+    def get_api_keys(self) -> list[dict]:
+        """Return all Runtime API keys (admin only)."""
+        return self._request(
+            "GET", "/api/admin/api-keys", headers=self._admin_headers()
+        )
 
     def admin_token(self, *, refresh: bool = False) -> str:
         """Log in with the admin password and return a bearer JWT (cached)."""

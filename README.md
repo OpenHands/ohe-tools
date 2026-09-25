@@ -24,10 +24,9 @@ is standard library.
 ## Quick start
 
 ```bash
-# Point the CLI at your install's Runtime API and provide credentials.
+# Point the CLI at your install's Runtime API and provide the admin password.
 export OHE_RUNTIME_API_URL=https://runtime-api.<your-base-domain>
-export OHE_API_KEY=<runtime-api key>          # for read operations
-export OHE_ADMIN_PASSWORD=<runtime-api admin> # for write operations
+export OHE_ADMIN_PASSWORD=<Runtime API Admin Password>
 
 ohe images list
 # Derive a new image from the installer default, changing only image + count:
@@ -60,31 +59,31 @@ API-only command.
 
 ### Credentials
 
-The Runtime API credential is **separate** from the standard OpenHands API
-token. Values are resolved in this order:
+`ohe` is a pure API client — it never shells out to `kubectl`. You need two
+things, both available without cluster access:
 
-| Setting | Option | Env (preferred) | Env (script-compatible) |
+| Setting | Option | Env (preferred) | Env (compat) |
 |---|---|---|---|
 | Base URL | `--runtime-api-url` | `OHE_RUNTIME_API_URL` | `RUNTIME_API_URL` |
-| API key (read) | `--api-key` | `OHE_API_KEY` | `API_KEY` |
-| Admin password (write) | `--admin-password` | `OHE_ADMIN_PASSWORD` | `ADMIN_PASSWORD` |
+| Admin password | `--admin-password` | `OHE_ADMIN_PASSWORD` | `ADMIN_PASSWORD` |
+| API key (optional) | `--api-key` | `OHE_API_KEY` | `API_KEY` |
 
-Listing authenticates with the API key (`X-API-Key`). Saving and deleting use
-the admin password via a PBKDF2 challenge-response login that returns a 24-hour
-JWT; the client performs that handshake automatically.
+- **Base URL** — on Replicated/VM installs the Runtime API is exposed at
+  `https://runtime-api.<your-base-domain>`.
+- **Admin password** — the **Runtime API Admin Password** from the installer.
+  A random value is generated at install; set or reset your own in the
+  **Admin Console → Config → Sandbox Configuration → Runtime API Admin
+  Password**, then **Deploy**. This is the only credential you need to manage.
 
-On a cluster you can discover these values from Kubernetes secrets (this CLI is
-a pure API client and deliberately does **not** shell out to `kubectl`):
+The admin password is sufficient for every `ohe images` operation. Writes
+(`save`/`delete`) authenticate with it via a PBKDF2 challenge-response login
+that returns a 24-hour JWT. Reads (`list`/`get`) need an `X-API-Key`; since the
+Default API Key is hidden in the installer config, the client derives one from
+the admin password automatically. Pass `--api-key` explicitly only if you
+prefer to supply your own (it skips the derivation step).
 
-```bash
-NS=openhands
-export OHE_RUNTIME_API_URL="https://$(kubectl get ingress -n "$NS" \
-  -l app.kubernetes.io/name=runtime-api -o jsonpath='{.items[0].spec.rules[0].host}')"
-export OHE_API_KEY="$(kubectl get secret default-api-key -n "$NS" \
-  -o jsonpath='{.data.default-api-key}' | base64 -d)"
-export OHE_ADMIN_PASSWORD="$(kubectl get secret admin-password -n "$NS" \
-  -o jsonpath='{.data.admin-password}' | base64 -d)"
-```
+The Runtime API credential is **separate** from the standard OpenHands API
+token.
 
 ## Repository layout
 

@@ -26,17 +26,18 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     "--api-key",
     metavar="KEY",
     help=(
-        "Runtime API key used for read operations. Falls back to $OHE_API_KEY "
-        "or $API_KEY. This is the runtime-api key, not a standard OpenHands "
-        "API key."
+        "Runtime API key for read operations (optional; derived from the admin "
+        "password when omitted). Falls back to $OHE_API_KEY or $API_KEY. This "
+        "is the runtime-api key, not a standard OpenHands API key."
     ),
 )
 @click.option(
     "--admin-password",
     metavar="PASSWORD",
     help=(
-        "Runtime API admin password used for write operations. Falls back to "
-        "$OHE_ADMIN_PASSWORD or $ADMIN_PASSWORD."
+        "Runtime API admin password — the 'Runtime API Admin Password' from the "
+        "installer config. Used for writes and to derive an API key for reads. "
+        "Falls back to $OHE_ADMIN_PASSWORD or $ADMIN_PASSWORD."
     ),
 )
 @click.pass_context

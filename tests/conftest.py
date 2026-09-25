@@ -80,6 +80,22 @@ def _make_handler(state: FakeRuntimeApiState):
                 Handler.salts[chal["challenge"]] = chal["salt"]
                 self._send(200, chal)
                 return
+            if self.path == "/api/admin/api-keys":
+                if not self._require_admin():
+                    return
+                self._send(
+                    200,
+                    [
+                        {
+                            "id": "key-1",
+                            "name": "default",
+                            "key_value": state.api_key,
+                            "max_runtimes": None,
+                            "remaining_credits": None,
+                        }
+                    ],
+                )
+                return
             if self.path == "/api/warm-runtime-configs":
                 if self._flaky_should_fail():
                     self._send(503, {"detail": "temporarily unavailable"})
