@@ -24,8 +24,9 @@ is standard library.
 ## Quick start
 
 ```bash
-# Point the CLI at your install's Runtime API and provide the admin password.
-export OHE_RUNTIME_API_URL=https://runtime-api.<your-base-domain>
+# Supply your standard app URL and the admin password. The Runtime API URL is
+# derived from the app URL (app.<domain> -> runtime-api.<domain>).
+export OHE_APP_URL=https://app.<your-base-domain>
 export OHE_ADMIN_PASSWORD=<Runtime API Admin Password>
 
 ohe images list
@@ -38,7 +39,7 @@ ohe images delete php-web
 ## Command overview
 
 ```
-ohe [--runtime-api-url URL] [--api-key KEY] [--admin-password PASSWORD] <command>
+ohe [--app-url URL] [--admin-password PASSWORD] [--runtime-api-url URL] <command>
 
 ohe images list                        List effective sandbox image configs
 ohe images get   <name>                Show one configuration
@@ -64,12 +65,15 @@ things, both available without cluster access:
 
 | Setting | Option | Env (preferred) | Env (compat) |
 |---|---|---|---|
-| Base URL | `--runtime-api-url` | `OHE_RUNTIME_API_URL` | `RUNTIME_API_URL` |
+| App URL | `--app-url` | `OHE_APP_URL` | `APP_URL` |
 | Admin password | `--admin-password` | `OHE_ADMIN_PASSWORD` | `ADMIN_PASSWORD` |
+| Runtime API URL (override) | `--runtime-api-url` | `OHE_RUNTIME_API_URL` | `RUNTIME_API_URL` |
 | API key (optional) | `--api-key` | `OHE_API_KEY` | `API_KEY` |
 
-- **Base URL** — on Replicated/VM installs the Runtime API is exposed at
-  `https://runtime-api.<your-base-domain>`.
+- **App URL** — your standard OpenHands URL, `https://app.<your-base-domain>`.
+  The Runtime API URL is derived from it by swapping the first host label
+  (`app` -> `runtime-api`), matching the installer's standard hostname layout.
+  If you run a **custom** layout, set `--runtime-api-url` explicitly instead.
 - **Admin password** — the **Runtime API Admin Password** from the installer.
   A random value is generated at install; set or reset your own in the
   **Admin Console → Config → Sandbox Configuration → Runtime API Admin

@@ -6,7 +6,7 @@ import click
 
 from ohe import __version__
 from ohe.commands.images import images
-from ohe.config import resolve_settings
+from ohe.config import resolve_base_url, resolve_settings
 from ohe.runtime_api import RuntimeApiClient
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
@@ -15,11 +15,21 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, "-V", "--version", prog_name="ohe")
 @click.option(
+    "--app-url",
+    metavar="URL",
+    help=(
+        "Your OpenHands app URL, e.g. https://app.<your-base-domain>. The "
+        "Runtime API URL is derived from it (app -> runtime-api). Falls back to "
+        "$OHE_APP_URL or $APP_URL."
+    ),
+)
+@click.option(
     "--runtime-api-url",
     metavar="URL",
     help=(
-        "Runtime API base URL, e.g. https://runtime-api.<your-base-domain>. "
-        "Falls back to $OHE_RUNTIME_API_URL or $RUNTIME_API_URL."
+        "Override the Runtime API base URL for custom hostname layouts, e.g. "
+        "https://runtime-api.<your-base-domain>. Falls back to "
+        "$OHE_RUNTIME_API_URL or $RUNTIME_API_URL."
     ),
 )
 @click.option(
@@ -43,18 +53,20 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 @click.pass_context
 def main(
     ctx: click.Context,
+    app_url: str | None,
     runtime_api_url: str | None,
     api_key: str | None,
     admin_password: str | None,
 ) -> None:
     """Operate OpenHands Enterprise from the command line.
 
-    Credentials for the Runtime API can be passed as options or through
-    environment variables. The Runtime API credential is separate from the
-    standard OpenHands API token.
+    Supply your standard app URL (--app-url); the Runtime API URL is derived
+    from it. Use --runtime-api-url only for custom hostname layouts. The Runtime
+    API credential is separate from the standard OpenHands API token.
     """
     settings = resolve_settings(
-        base_url=runtime_api_url,
+        app_url=app_url,
+        runtime_api_url=runtime_api_url,
         api_key=api_key,
         admin_password=admin_password,
     )
@@ -64,13 +76,12 @@ def main(
 def build_client(ctx: click.Context) -> RuntimeApiClient:
     """Construct a Runtime API client from resolved settings, or exit cleanly."""
     settings = ctx.obj
-    if not settings.base_url:
-        raise click.UsageError(
-            "No Runtime API URL configured. Pass --runtime-api-url or set "
-            "$OHE_RUNTIME_API_URL (e.g. https://runtime-api.<your-base-domain>)."
-        )
+    try:
+        base_url = resolve_base_url(settings)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
     return RuntimeApiClient(
-        settings.base_url,
+        base_url,
         api_key=settings.api_key,
         admin_password=settings.admin_password,
     )

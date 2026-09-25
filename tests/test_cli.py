@@ -218,4 +218,16 @@ def test_missing_url_is_usage_error(fake_api):
     # No URL in env or options.
     result = CliRunner().invoke(main, ["images", "list"], env={})
     assert result.exit_code != 0
-    assert "No Runtime API URL configured" in result.output
+    assert "No app or Runtime API URL configured" in result.output
+
+
+def test_list_with_app_url_derives_runtime_api(fake_api, monkeypatch):
+    # --app-url points at a standard app host; the derived runtime-api host is
+    # redirected to the fake server so the end-to-end path is exercised.
+    from ohe import config
+
+    base_url, _ = fake_api
+    monkeypatch.setattr(config, "derive_runtime_api_url", lambda _app: base_url)
+    env = {"OHE_APP_URL": "https://app.example.com", "OHE_ADMIN_PASSWORD": "s3cret"}
+    result = CliRunner().invoke(main, ["images", "list"], env=env)
+    assert result.exit_code == 0, result.output
